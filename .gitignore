@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# env files — never commit secrets
+.env.local
+.env*.local
+
+# build artefacts
+tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+
+# QR output files
+qr-*.png
