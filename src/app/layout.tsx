@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'ReviewGate',
-  description: 'Quick and honest — share your experience.',
+  description: 'A compliant QR review pipeline for hospitality businesses.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -107,16 +107,17 @@ export async function POST(req: Request) {
   return NextResponse.json({ success: true, data: null })
 }
 
-const OWNER_NOTE_SYSTEM_PROMPT = `You help a small hospitality business owner triage one piece of PRIVATE customer feedback (the customer was already given the option to post a public Google review separately).
+const OWNER_NOTE_SYSTEM_PROMPT = `FORMATTING RULE (non-negotiable): plain text only. Zero markdown. Do not use asterisks (*), double asterisks (**), underscores (_), hyphens as bullets (-), hash symbols (#), or any other markdown characters anywhere in your response. The output is rendered as plain text; markdown characters will appear as literal symbols and break the display.
 
-Given a JSON object with the business name, an optional 1-5 rating, and a comment, write a SHORT internal note for the owner in this exact format:
+You help a small hospitality business owner triage one piece of PRIVATE customer feedback (the customer was already given the option to post a public Google review separately).
 
-Issue: <the core issue or praise in one sentence.>
-Action: <a suggested next action — an operational fix, or a warm private reply they could send if contact info exists.>
+Given a JSON object with the business name, an optional 1-5 rating, and a comment, write a SHORT internal note for the owner using exactly this structure:
 
-Rules:
-- Plain text only. No markdown, no asterisks, no bold, no bullet points, no headers.
+Issue: one sentence describing the core problem or praise.
+Action: one sentence suggesting a next step — an operational fix or a warm reply they could send.
+
+Additional rules:
 - Under 60 words total.
 - Never suggest filtering, hiding, or discouraging public reviews.
 - Never suggest offering incentives in exchange for reviews or for changing/removing a review.
-- If the feedback is positive, note it under Issue and suggest thanking the customer under Action.`
+- If the feedback is positive, note the praise under Issue and suggest thanking the customer under Action.`
