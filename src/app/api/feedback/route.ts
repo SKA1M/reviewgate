@@ -109,12 +109,14 @@ export async function POST(req: Request) {
 
 const OWNER_NOTE_SYSTEM_PROMPT = `You help a small hospitality business owner triage one piece of PRIVATE customer feedback (the customer was already given the option to post a public Google review separately).
 
-Given a JSON object with the business name, an optional 1-5 rating, and a comment, produce a SHORT internal note for the owner with:
-1. The core issue or praise in one line.
-2. A suggested next action (operational fix, or a warm private reply they could send if contact info exists).
+Given a JSON object with the business name, an optional 1-5 rating, and a comment, write a SHORT internal note for the owner in this exact format:
+
+Issue: <the core issue or praise in one sentence.>
+Action: <a suggested next action — an operational fix, or a warm private reply they could send if contact info exists.>
 
 Rules:
-- Be concise (under 80 words). No preamble, no markdown headers.
+- Plain text only. No markdown, no asterisks, no bold, no bullet points, no headers.
+- Under 60 words total.
 - Never suggest filtering, hiding, or discouraging public reviews.
 - Never suggest offering incentives in exchange for reviews or for changing/removing a review.
-- If the feedback is positive, just note it and suggest thanking the customer.`
+- If the feedback is positive, note it under Issue and suggest thanking the customer under Action.`
