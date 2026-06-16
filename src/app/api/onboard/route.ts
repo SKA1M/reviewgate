@@ -1,5 +1,5 @@
 // Admin-only endpoint — protected by ONBOARD_SECRET env var.
-// Creates a client row, a Supabase Auth owner account, and returns a QR data URL.
+// Upserts a client row; creates owner auth account and QR only for review service.
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import QRCode from 'qrcode'
@@ -10,14 +10,29 @@ const admin = createClient(
   { auth: { persistSession: false } },
 )
 
+interface SiteFacts {
+  businessType?: string
+  tagline?: string
+  locality?: string
+  region?: string
+  country?: string
+  phone?: string
+  whatsapp?: string
+  instagram?: string
+  vibe?: string
+  offerings?: string[]
+}
+
 interface OnboardBody {
   secret: string
   name: string
   slug: string
-  googleReviewUrl: string
+  services?: string[]
+  googleReviewUrl?: string
   dailyBudgetUsd: number
-  ownerEmail: string
-  ownerPassword: string
+  ownerEmail?: string
+  ownerPassword?: string
+  siteFacts?: SiteFacts
 }
 
 export async function POST(req: Request) {
@@ -35,16 +50,12 @@ export async function POST(req: Request) {
 
   const slug = (body.slug ?? '').trim().toLowerCase()
   const name = (body.name ?? '').trim()
-  const googleReviewUrl = (body.googleReviewUrl ?? '').trim()
-  const ownerEmail = (body.ownerEmail ?? '').trim()
-  const ownerPassword = body.ownerPassword ?? ''
+  const services: string[] =
+    Array.isArray(body.services) && body.services.length > 0 ? body.services : ['review']
   const dailyBudgetUsd = Number(body.dailyBudgetUsd) > 0 ? Number(body.dailyBudgetUsd) : 1.0
 
-  if (!slug || !name || !googleReviewUrl || !ownerEmail || ownerPassword.length < 8) {
-    return NextResponse.json(
-      { success: false, error: 'Missing or invalid fields (password min 8 chars)' },
-      { status: 400 },
-    )
+  if (!slug || !name) {
+    return NextResponse.json({ success: false, error: 'Missing slug or name' }, { status: 400 })
   }
 
   if (!/^[a-z0-9-]+$/.test(slug)) {
@@ -54,37 +65,103 @@ export async function POST(req: Request) {
     )
   }
 
-  const { error: insertErr } = await admin.from('clients').insert({
+  const wantsReview = services.includes('review')
+  const wantsLanding = services.includes('landing')
+
+  const googleReviewUrl = (body.googleReviewUrl ?? '').trim()
+  const ownerEmail = (body.ownerEmail ?? '').trim()
+  const ownerPassword = body.ownerPassword ?? ''
+
+  // Fetch existing client to support upsert and merge services
+  const { data: existingClient } = await admin
+    .from('clients')
+    .select('id, services')
+    .eq('slug', slug)
+    .maybeSingle()
+
+  const isNew = !existingClient
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existingServices: string[] = (existingClient as any)?.services ?? (isNew ? [] : ['review'])
+  const mergedServices = Array.from(new Set([...existingServices, ...services]))
+
+  // Auth user only needed when review is newly being added for this slug
+  const needsAuthUser = wantsReview && !existingServices.includes('review')
+
+  if (wantsReview && !googleReviewUrl) {
+    return NextResponse.json(
+      { success: false, error: 'Review QR requires a Google review URL' },
+      { status: 400 },
+    )
+  }
+
+  if (needsAuthUser && (!ownerEmail || ownerPassword.length < 8)) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'New review client requires owner email and password (min 8 chars)',
+      },
+      { status: 400 },
+    )
+  }
+
+  const clientPayload: Record<string, unknown> = {
     slug,
     name,
-    google_review_url: googleReviewUrl,
     daily_llm_budget_usd: dailyBudgetUsd,
-  })
-
-  if (insertErr) {
-    return NextResponse.json({ success: false, error: insertErr.message }, { status: 409 })
+    services: mergedServices,
   }
 
-  const { error: authErr } = await admin.auth.admin.createUser({
-    email: ownerEmail,
-    password: ownerPassword,
-    email_confirm: true, // admin-created accounts skip email verification
-    user_metadata: { slug },
-  })
-
-  if (authErr) {
-    // Roll back client row so slug stays available for retry.
-    await admin.from('clients').delete().eq('slug', slug)
-    return NextResponse.json({ success: false, error: authErr.message }, { status: 500 })
+  if (wantsReview) {
+    clientPayload.google_review_url = googleReviewUrl
   }
 
-  const base = (process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
-  const reviewUrl = `${base}/r/${slug}`
-  const qrDataUrl = await QRCode.toDataURL(reviewUrl, {
-    width: 400,
-    margin: 2,
-    errorCorrectionLevel: 'M',
-  })
+  if (wantsLanding && body.siteFacts) {
+    clientPayload.site_facts = body.siteFacts
+  }
 
-  return NextResponse.json({ success: true, slug, reviewUrl, qrDataUrl })
+  if (isNew) {
+    const { error } = await admin.from('clients').insert(clientPayload)
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+  } else {
+    const { error } = await admin.from('clients').update(clientPayload).eq('slug', slug)
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 })
+    }
+  }
+
+  if (needsAuthUser) {
+    const { error: authErr } = await admin.auth.admin.createUser({
+      email: ownerEmail,
+      password: ownerPassword,
+      email_confirm: true,
+      user_metadata: { slug },
+    })
+
+    if (authErr) {
+      // Roll back DB change cleanly
+      if (isNew) {
+        await admin.from('clients').delete().eq('slug', slug)
+      } else {
+        await admin.from('clients').update({ services: existingServices }).eq('slug', slug)
+      }
+      return NextResponse.json({ success: false, error: authErr.message }, { status: 500 })
+    }
+  }
+
+  let reviewUrl: string | undefined
+  let qrDataUrl: string | undefined
+
+  if (wantsReview) {
+    const base = (process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+    reviewUrl = `${base}/r/${slug}`
+    qrDataUrl = await QRCode.toDataURL(reviewUrl, {
+      width: 400,
+      margin: 2,
+      errorCorrectionLevel: 'M',
+    })
+  }
+
+  return NextResponse.json({ success: true, slug, services: mergedServices, reviewUrl, qrDataUrl })
 }
