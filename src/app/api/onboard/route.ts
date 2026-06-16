@@ -21,6 +21,10 @@ interface SiteFacts {
   instagram?: string
   vibe?: string
   offerings?: string[]
+  hoursText?: string
+  mapsUrl?: string
+  findUsTip?: string
+  menuRaw?: string
 }
 
 interface OnboardBody {

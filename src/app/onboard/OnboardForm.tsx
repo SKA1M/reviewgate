@@ -20,6 +20,10 @@ const LANDING_FIELDS = [
   { key: 'instagram', label: 'Instagram handle', placeholder: '@beachshackgoa' },
   { key: 'vibe', label: 'Vibe / What makes it special', placeholder: 'Free-text description...' },
   { key: 'offerings', label: 'Offerings (comma-separated)', placeholder: 'Fresh seafood, Sunset cocktails, Live music' },
+  { key: 'hoursText', label: 'Hours of operation', placeholder: 'e.g. Mon–Sun 8am–11:30pm' },
+  { key: 'mapsUrl', label: 'Google Maps link', placeholder: 'https://maps.app.goo.gl/…' },
+  { key: 'findUsTip', label: 'Where to find us', placeholder: 'e.g. Look for the blue gate just past the lighthouse' },
+  { key: 'menuRaw', label: 'Menu (optional — paste items, structured later)', placeholder: 'Fish curry ₹280\nPrawn masala ₹350\n…' },
 ] as const
 
 type LandingKey = (typeof LANDING_FIELDS)[number]['key']
@@ -53,6 +57,10 @@ export default function OnboardForm() {
     instagram: '',
     vibe: '',
     offerings: '',
+    hoursText: '',
+    mapsUrl: '',
+    findUsTip: '',
+    menuRaw: '',
   })
   const [services, setServices] = useState<Set<string>>(new Set(['review']))
   const [slugEdited, setSlugEdited] = useState(false)
@@ -123,6 +131,10 @@ export default function OnboardForm() {
         instagram: form.instagram,
         vibe: form.vibe,
         offerings: form.offerings.split(',').map((s) => s.trim()).filter(Boolean),
+        hoursText: form.hoursText,
+        mapsUrl: form.mapsUrl,
+        findUsTip: form.findUsTip,
+        menuRaw: form.menuRaw,
       }
     }
 
@@ -306,7 +318,7 @@ export default function OnboardForm() {
         <>
           {LANDING_FIELDS.map(({ key, label, placeholder }) => (
             <Field key={key} label={label}>
-              {key === 'vibe' ? (
+              {(key === 'vibe' || key === 'findUsTip' || key === 'menuRaw') ? (
                 <textarea
                   value={form[key]}
                   onChange={(e) => set(key, e.target.value)}
