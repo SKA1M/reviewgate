@@ -11,6 +11,7 @@ const admin = createClient(
 )
 
 interface SiteFacts {
+  category?: 'food' | 'stay' | 'other'
   businessType?: string
   tagline?: string
   locality?: string
@@ -24,7 +25,10 @@ interface SiteFacts {
   hoursText?: string
   mapsUrl?: string
   findUsTip?: string
+  menuMode?: 'static' | 'linked'
   menuRaw?: string
+  menuLinkUrl?: string
+  amenities?: string
 }
 
 interface OnboardBody {

@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 
+type Category = 'food' | 'stay' | 'other' | ''
+type MenuMode = 'static' | 'linked' | ''
+
 interface Result {
   slug: string
   services: string[]
@@ -9,26 +12,7 @@ interface Result {
   qrDataUrl?: string
 }
 
-const LANDING_FIELDS = [
-  { key: 'businessType', label: 'Business type', placeholder: 'e.g. Beach shack, Fine dining, Boutique hotel' },
-  { key: 'tagline', label: 'Tagline', placeholder: 'e.g. Where every wave tells a story' },
-  { key: 'locality', label: 'Locality / Neighbourhood', placeholder: 'e.g. Palolem' },
-  { key: 'region', label: 'Region / State', placeholder: 'e.g. Goa' },
-  { key: 'country', label: 'Country', placeholder: 'e.g. India' },
-  { key: 'phone', label: 'Phone', placeholder: '+91 98765 43210' },
-  { key: 'whatsapp', label: 'WhatsApp', placeholder: '+91 98765 43210' },
-  { key: 'instagram', label: 'Instagram handle', placeholder: '@beachshackgoa' },
-  { key: 'vibe', label: 'Vibe / What makes it special', placeholder: 'Free-text description...' },
-  { key: 'offerings', label: 'Offerings (comma-separated)', placeholder: 'Fresh seafood, Sunset cocktails, Live music' },
-  { key: 'hoursText', label: 'Hours of operation', placeholder: 'e.g. Mon–Sun 8am–11:30pm' },
-  { key: 'mapsUrl', label: 'Google Maps link', placeholder: 'https://maps.app.goo.gl/…' },
-  { key: 'findUsTip', label: 'Where to find us', placeholder: 'e.g. Look for the blue gate just past the lighthouse' },
-  { key: 'menuRaw', label: 'Menu (optional — paste items, structured later)', placeholder: 'Fish curry ₹280\nPrawn masala ₹350\n…' },
-] as const
-
-type LandingKey = (typeof LANDING_FIELDS)[number]['key']
-
-type FormState = {
+interface FormState {
   secret: string
   name: string
   slug: string
@@ -36,32 +20,57 @@ type FormState = {
   dailyBudgetUsd: string
   ownerEmail: string
   ownerPassword: string
-} & Record<LandingKey, string>
+  // Landing — common
+  category: Category
+  businessType: string
+  locality: string
+  region: string
+  country: string
+  phone: string
+  whatsapp: string
+  instagram: string
+  vibe: string
+  offerings: string
+  hoursText: string
+  mapsUrl: string
+  findUsTip: string
+  // Landing — Food specialized
+  menuMode: MenuMode
+  menuRaw: string
+  menuLinkUrl: string
+  // Landing — Stay specialized
+  amenities: string
+}
+
+const INITIAL: FormState = {
+  secret: '',
+  name: '',
+  slug: '',
+  googleReviewUrl: '',
+  dailyBudgetUsd: '1.00',
+  ownerEmail: '',
+  ownerPassword: '',
+  category: '',
+  businessType: '',
+  locality: '',
+  region: '',
+  country: '',
+  phone: '',
+  whatsapp: '',
+  instagram: '',
+  vibe: '',
+  offerings: '',
+  hoursText: '',
+  mapsUrl: '',
+  findUsTip: '',
+  menuMode: '',
+  menuRaw: '',
+  menuLinkUrl: '',
+  amenities: '',
+}
 
 export default function OnboardForm() {
-  const [form, setForm] = useState<FormState>({
-    secret: '',
-    name: '',
-    slug: '',
-    googleReviewUrl: '',
-    dailyBudgetUsd: '1.00',
-    ownerEmail: '',
-    ownerPassword: '',
-    businessType: '',
-    tagline: '',
-    locality: '',
-    region: '',
-    country: '',
-    phone: '',
-    whatsapp: '',
-    instagram: '',
-    vibe: '',
-    offerings: '',
-    hoursText: '',
-    mapsUrl: '',
-    findUsTip: '',
-    menuRaw: '',
-  })
+  const [form, setForm] = useState<FormState>(INITIAL)
   const [services, setServices] = useState<Set<string>>(new Set(['review']))
   const [slugEdited, setSlugEdited] = useState(false)
   const [result, setResult] = useState<Result | null>(null)
@@ -120,9 +129,9 @@ export default function OnboardForm() {
     }
 
     if (hasLanding) {
-      payload.siteFacts = {
+      const siteFacts: Record<string, unknown> = {
+        category: form.category,
         businessType: form.businessType,
-        tagline: form.tagline,
         locality: form.locality,
         region: form.region,
         country: form.country,
@@ -134,8 +143,19 @@ export default function OnboardForm() {
         hoursText: form.hoursText,
         mapsUrl: form.mapsUrl,
         findUsTip: form.findUsTip,
-        menuRaw: form.menuRaw,
       }
+
+      if (form.category === 'food') {
+        siteFacts.menuMode = form.menuMode
+        if (form.menuMode === 'static') siteFacts.menuRaw = form.menuRaw
+        if (form.menuMode === 'linked') siteFacts.menuLinkUrl = form.menuLinkUrl
+      }
+
+      if (form.category === 'stay') {
+        siteFacts.amenities = form.amenities
+      }
+
+      payload.siteFacts = siteFacts
     }
 
     const res = await fetch('/api/onboard', {
@@ -249,9 +269,7 @@ export default function OnboardForm() {
         />
       </Field>
 
-      <fieldset
-        style={{ border: '1px solid #ddd', borderRadius: 8, padding: '0.75rem 1rem', margin: 0 }}
-      >
+      <fieldset style={{ border: '1px solid #ddd', borderRadius: 8, padding: '0.75rem 1rem', margin: 0 }}>
         <legend style={{ fontWeight: 500, fontSize: '0.95rem', padding: '0 0.25rem' }}>
           Services
         </legend>
@@ -259,15 +277,7 @@ export default function OnboardForm() {
           <input type="checkbox" checked={hasReview} onChange={() => toggleService('review')} />
           Review QR
         </label>
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            cursor: 'pointer',
-            marginTop: '0.5rem',
-          }}
-        >
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginTop: '0.5rem' }}>
           <input type="checkbox" checked={hasLanding} onChange={() => toggleService('landing')} />
           Landing page
         </label>
@@ -316,27 +326,207 @@ export default function OnboardForm() {
 
       {hasLanding && (
         <>
-          {LANDING_FIELDS.map(({ key, label, placeholder }) => (
-            <Field key={key} label={label}>
-              {(key === 'vibe' || key === 'findUsTip' || key === 'menuRaw') ? (
+          <SectionDivider label="Landing page" />
+
+          {/* ── Category (drives conditional sections below) ── */}
+          <Field label="Business category">
+            <select
+              value={form.category}
+              onChange={(e) => {
+                set('category', e.target.value)
+                set('menuMode', '')
+              }}
+              required
+              style={inputStyle}
+            >
+              <option value="">Select a category…</option>
+              <option value="food">Food (restaurant / cafe / bar)</option>
+              <option value="stay">Stay (hostel / guesthouse / homestay)</option>
+              <option value="other">Other local business</option>
+            </select>
+          </Field>
+
+          {/* ── Common fields ───────────────────────────────── */}
+          <Field label="Business type detail" hint="e.g. Beach shack, Fine dining, Boutique hotel">
+            <input
+              type="text"
+              value={form.businessType}
+              onChange={(e) => set('businessType', e.target.value)}
+              placeholder="e.g. Beach shack, Fine dining, Boutique hotel"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Vibe / What makes it special">
+            <textarea
+              value={form.vibe}
+              onChange={(e) => set('vibe', e.target.value)}
+              placeholder="Free-text description…"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </Field>
+
+          <Field label="Offerings (comma-separated)">
+            <input
+              type="text"
+              value={form.offerings}
+              onChange={(e) => set('offerings', e.target.value)}
+              placeholder="Fresh seafood, Sunset cocktails, Live music"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Locality / Neighbourhood">
+            <input
+              type="text"
+              value={form.locality}
+              onChange={(e) => set('locality', e.target.value)}
+              placeholder="e.g. Palolem"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Region / State">
+            <input
+              type="text"
+              value={form.region}
+              onChange={(e) => set('region', e.target.value)}
+              placeholder="e.g. Goa"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Country">
+            <input
+              type="text"
+              value={form.country}
+              onChange={(e) => set('country', e.target.value)}
+              placeholder="e.g. India"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Hours of operation">
+            <input
+              type="text"
+              value={form.hoursText}
+              onChange={(e) => set('hoursText', e.target.value)}
+              placeholder="e.g. Mon–Sun 8am–11:30pm"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Phone">
+            <input
+              type="text"
+              value={form.phone}
+              onChange={(e) => set('phone', e.target.value)}
+              placeholder="+91 98765 43210"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="WhatsApp">
+            <input
+              type="text"
+              value={form.whatsapp}
+              onChange={(e) => set('whatsapp', e.target.value)}
+              placeholder="+91 98765 43210"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Instagram handle">
+            <input
+              type="text"
+              value={form.instagram}
+              onChange={(e) => set('instagram', e.target.value)}
+              placeholder="@beachshackgoa"
+              style={inputStyle}
+            />
+          </Field>
+
+          <Field label="Where to find us">
+            <textarea
+              value={form.findUsTip}
+              onChange={(e) => set('findUsTip', e.target.value)}
+              placeholder="e.g. Look for the blue gate just past the lighthouse"
+              rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </Field>
+
+          <Field label="Google Maps link">
+            <input
+              type="url"
+              value={form.mapsUrl}
+              onChange={(e) => set('mapsUrl', e.target.value)}
+              placeholder="https://maps.app.goo.gl/…"
+              style={inputStyle}
+            />
+          </Field>
+
+          {/* ── Food specialized ────────────────────────────── */}
+          {form.category === 'food' && (
+            <>
+              <SectionDivider label="Menu" />
+
+              <Field label="How does your menu work?">
+                <select
+                  value={form.menuMode}
+                  onChange={(e) => set('menuMode', e.target.value)}
+                  required
+                  style={inputStyle}
+                >
+                  <option value="">Choose…</option>
+                  <option value="static">Stable — list it on my page</option>
+                  <option value="linked">Changes often — link to it</option>
+                </select>
+              </Field>
+
+              {form.menuMode === 'static' && (
+                <Field label="Menu (paste items — structured during review)" hint="One item per line, or free text">
+                  <textarea
+                    value={form.menuRaw}
+                    onChange={(e) => set('menuRaw', e.target.value)}
+                    placeholder={'Fish curry ₹280\nPrawn masala ₹350\n…'}
+                    rows={5}
+                    style={{ ...inputStyle, resize: 'vertical' }}
+                  />
+                </Field>
+              )}
+
+              {form.menuMode === 'linked' && (
+                <Field label="Menu link" hint="Instagram post, Google Drive PDF, website — wherever they keep it">
+                  <input
+                    type="url"
+                    value={form.menuLinkUrl}
+                    onChange={(e) => set('menuLinkUrl', e.target.value)}
+                    placeholder="https://instagram.com/p/…"
+                    style={inputStyle}
+                  />
+                </Field>
+              )}
+            </>
+          )}
+
+          {/* ── Stay specialized ────────────────────────────── */}
+          {form.category === 'stay' && (
+            <>
+              <SectionDivider label="Rooms & amenities" />
+
+              <Field label="Amenities / room info" hint="Comma-separated or free text">
                 <textarea
-                  value={form[key]}
-                  onChange={(e) => set(key, e.target.value)}
-                  placeholder={placeholder}
-                  rows={3}
+                  value={form.amenities}
+                  onChange={(e) => set('amenities', e.target.value)}
+                  placeholder="AC rooms, Hot water, Free Wi-Fi, Rooftop chill-out, Airport pickup"
+                  rows={4}
                   style={{ ...inputStyle, resize: 'vertical' }}
                 />
-              ) : (
-                <input
-                  type="text"
-                  value={form[key]}
-                  onChange={(e) => set(key, e.target.value)}
-                  placeholder={placeholder}
-                  style={inputStyle}
-                />
-              )}
-            </Field>
-          ))}
+              </Field>
+            </>
+          )}
         </>
       )}
 
@@ -364,6 +554,14 @@ function Field({
       {children}
       {hint && <span style={{ fontSize: '0.8rem', color: '#888' }}>{hint}</span>}
     </label>
+  )
+}
+
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#888' }}>
+      {label}
+    </p>
   )
 }
 
